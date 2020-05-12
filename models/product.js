@@ -5,9 +5,9 @@ const p = path.join(
     path.dirname(process.mainModule.filename),
     'data',
     'products.json'
-); //root directory를 반납해서, data folder로 들어가서 products.json으로 들어간다.
+);
 
-const getProductsFromFile = (cb) => {
+const getProductsFromFile = cb => {
     fs.readFile(p, (err, fileContent) => {
         if (err) {
             cb([]);
@@ -18,8 +18,11 @@ const getProductsFromFile = (cb) => {
 };
 
 module.exports = class Product {
-    constructor(t) {
-        this.title = t;
+    constructor(title, imageUrl, description, price) {
+        this.title = title;
+        this.imageUrl = imageUrl;
+        this.description = description;
+        this.price = price;
     }
 
     save() {
@@ -27,7 +30,7 @@ module.exports = class Product {
             products.push(this);
             fs.writeFile(p, JSON.stringify(products), err => {
                 console.log(err);
-            })
+            });
         });
     }
 
