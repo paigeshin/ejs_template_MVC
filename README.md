@@ -54,3 +54,236 @@ app.set('views', 'views');
 <%- include('includes/end.ejs') %>
 ```
 
+# MVC Pattern Refactoring
+
+### Refactoring to MVC
+
+- admin.js
+
+```jsx
+const express = require('express');
+const router = express.Router();
+const productsController = require('../controllers/products');
+
+// /admin/add-product => GET
+router.get('/add-product', productsController.getAddProduct);
+
+// /admin/add-product => POST
+router.post('/add-product', productsController.postAddProduct);
+
+exports.routes = router;
+```
+
+- shop.js
+
+```jsx
+const express = require('express');
+const router = express.Router();
+const productsController = require('../controllers/products');
+
+router.get('/', productsController.getProducts);
+
+module.exports = router;
+```
+
+- product controller
+
+```jsx
+const products = [];
+const adminData = require('../routes/admin');
+
+exports.getAddProduct = (req, res, next) => {
+    res.render('shop', {
+        prods: products,
+        pageTitle: 'Shop',
+        path: '/',
+        hasProducts: products.length > 0,
+        activeShop: true,
+        productCSS: true
+    });
+};
+
+exports.postAddProduct = (req, res, next) => {
+    products.push({ title: req.body.title });
+    res.redirect('/');
+};
+
+exports.getProducts = (req, res, next) => {
+    const products = adminData.products;
+    res.render('shop', {
+        prods: products,
+        pageTitle: 'Shop',
+        path: '/',
+        hasProducts: products.length > 0,
+        activeShop: true,
+        productCSS: true
+    });
+};
+```
+
+- app.js - import error controller
+
+```jsx
+const errorController = require('./controllers/error');
+app.use(errorController.get404);
+```
+
+- /controllers/error.js
+
+```jsx
+exports.get404 = (req, res, next) => {
+    res.status(404).render('404', { pageTitle: 'Page Not Found' });
+};
+```
+
+- /models/product
+
+```jsx
+const fs = require('fs');
+const path = require('path');
+
+const products = [];
+
+module.exports = class Product {
+    constructor(t) {
+        this.title = t;
+    }
+
+    save() {
+        const p = path.join(
+            path.dirname(process.mainModule.filename),
+            'data',
+            'products.json'
+        ); //root directory를 반납해서, data folder로 들어가서 products.json으로 들어간다.
+        fs.readFile(p, (err, fileContent) => {
+            let products = [];
+            if (!err) {
+                products = JSON.parse(fileContent); //이미 있는 파일이 지워주지 않기 위해서 읽어서 가져온다.
+            }
+            products.push(this);
+            fs.writeFile(p, JSON.stringify(products), (err) => {
+                console.log(err);
+            });
+        });
+    }
+
+    static fetchAll(cb) {
+        const p = path.join(
+            path.dirname(process.mainModule.filename),
+            'data',
+            'products.json'
+        ); //root directory를 반납해서, data folder로 들어가서 products.json으로 들어간다.
+        fs.readFile(p, (err, fileContent) => {
+            if (err) {
+                cb([]);
+            }
+            cb(JSON.parse(fileContent));
+        });
+    }
+
+};
+```
+
+- /controllers/products, model을 사용하여 refactoring
+
+```jsx
+const Product = require('../models/product');
+
+exports.getAddProduct = (req, res, next) => {
+    Product.fetchAll((products) => {
+        res.render('add-product', {
+            prods: products,
+            pageTitle: 'Shop',
+            path: '/admin/add-product',
+            hasProducts: products.length > 0,
+            activeShop: false,
+            productCSS: true
+        });
+    });
+};
+
+exports.postAddProduct = (req, res, next) => {
+    const product = new Product(req.body.title);
+    product.save();
+    res.redirect('/');
+};
+
+exports.getProducts = (req, res, next) => {
+    Product.fetchAll((products) => {
+        res.render('shop', {
+            prods: products,
+            pageTitle: 'Shop',
+            path: '/',
+            hasProducts: products.length > 0,
+            activeShop: true,
+            productCSS: true
+        });
+    });
+};
+```
+
+- root directory 가져오는 법
+
+```jsx
+path.join(path.dirname(process.mainModule.filename)); //root directory를 반납
+```
+
+- model refactoring
+
+```jsx
+const fs = require('fs');
+const path = require('path');
+
+const p = path.join(
+    path.dirname(process.mainModule.filename),
+    'data',
+    'products.json'
+); //root directory를 반납해서, data folder로 들어가서 products.json으로 들어간다.
+
+const getProductsFromFile = (cb) => {
+    fs.readFile(p, (err, fileContent) => {
+        if (err) {
+            cb([]);
+        } else {
+            cb(JSON.parse(fileContent));
+        }
+    });
+};
+
+module.exports = class Product {
+    constructor(t) {
+        this.title = t;
+    }
+
+    save() {
+        getProductsFromFile(products => {
+            products.push(this);
+            fs.writeFile(p, JSON.stringify(products), err => {
+                console.log(err);
+            })
+        });
+    }
+
+    static fetchAll(cb) {
+        getProductsFromFile(cb);
+    }
+
+};
+```
+
+### Model
+
+- Responsible for representing your data
+- Responsible for managing your data (saving, fetching, ...)
+- Doesn't matter if you manage data in memory, files, databases
+- Contains data-related logic
+
+### View
+
+- What the user sees
+- Shouldn't contain too much logic (Handlebars!)
+
+### Controller
+
+- Connects Model and View
+- Should only make sure that the two can communicate (in both directions)
